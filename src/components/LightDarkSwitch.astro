@@ -1,0 +1,123 @@
+---
+import { Icon } from "astro-icon/components";
+import I18nKey from "@i18n/i18nKey";
+import { i18n } from "@i18n/translation";
+---
+<!-- z-50 make the panel higher than other float panels -->
+<theme-switch class="relative z-50 block">
+    <button type="button" aria-label="화면 테마 전환" class="relative btn-plain scale-animation rounded-lg h-11 w-11 active:scale-90" id="scheme-switch" aria-controls="light-dark-panel" aria-expanded="false">
+        <div class="absolute" data-theme-icon="light" class:list={["opacity-0"]}>
+            <Icon name="material-symbols:wb-sunny-outline-rounded" class="text-[1.25rem]"></Icon>
+        </div>
+        <div class="absolute" data-theme-icon="dark" class:list={["opacity-0"]}>
+            <Icon name="material-symbols:dark-mode-outline-rounded" class="text-[1.25rem]"></Icon>
+        </div>
+        <div class="absolute" data-theme-icon="auto">
+            <Icon name="material-symbols:radio-button-partial-outline" class="text-[1.25rem]"></Icon>
+        </div>
+    </button>
+
+    <div inert id="light-dark-panel" class="hidden lg:block absolute transition float-panel-closed top-11 -right-2 pt-5" >
+        <div class="card-base float-panel p-2">
+            <button class="flex transition whitespace-nowrap items-center !justify-start w-full btn-plain scale-animation rounded-lg h-9 px-3 font-medium active:scale-95 mb-0.5"
+                    type="button" data-mode="light"
+            >
+                <Icon name="material-symbols:wb-sunny-outline-rounded" class="text-[1.25rem] mr-3"></Icon>
+                {i18n(I18nKey.lightMode)}
+            </button>
+            <button class="flex transition whitespace-nowrap items-center !justify-start w-full btn-plain scale-animation rounded-lg h-9 px-3 font-medium active:scale-95 mb-0.5"
+                    type="button" data-mode="dark"
+            >
+                <Icon name="material-symbols:dark-mode-outline-rounded" class="text-[1.25rem] mr-3"></Icon>
+                {i18n(I18nKey.darkMode)}
+            </button>
+            <button class="flex transition whitespace-nowrap items-center !justify-start w-full btn-plain scale-animation rounded-lg h-9 px-3 font-medium active:scale-95"
+                    type="button" data-mode="auto"
+            >
+                <Icon name="material-symbols:radio-button-partial-outline" class="text-[1.25rem] mr-3"></Icon>
+                {i18n(I18nKey.systemMode)}
+            </button>
+        </div>
+    </div>
+</theme-switch>
+
+<script>
+import { AUTO_MODE, DARK_MODE, LIGHT_MODE } from "@constants/constants";
+import type { LIGHT_DARK_MODE } from "@/types/config";
+import { applyThemeToDocument, getStoredTheme, setTheme } from "@utils/setting-utils";
+
+const modes = [LIGHT_MODE, DARK_MODE, AUTO_MODE] as const;
+
+class ThemeSwitch extends HTMLElement {
+    private listeners?: AbortController;
+
+    connectedCallback() {
+        this.listeners?.abort();
+        this.listeners = new AbortController();
+        const { signal } = this.listeners;
+        const toggle = this.querySelector<HTMLButtonElement>("#scheme-switch")!;
+        const panel = this.querySelector<HTMLElement>("#light-dark-panel")!;
+        const buttons = this.querySelectorAll<HTMLButtonElement>("[data-mode]");
+        let mode = getStoredTheme();
+
+        const update = () => {
+            for (const icon of this.querySelectorAll<HTMLElement>("[data-theme-icon]")) {
+                icon.classList.toggle("opacity-0", icon.dataset.themeIcon !== mode);
+            }
+            for (const button of buttons) {
+                const selected = button.dataset.mode === mode;
+                button.classList.toggle("current-theme-btn", selected);
+                button.setAttribute("aria-pressed", String(selected));
+            }
+        };
+        const select = (value: LIGHT_DARK_MODE) => {
+            mode = value;
+            setTheme(mode);
+            update();
+        };
+        const show = (open: boolean) => {
+            panel.classList.toggle("float-panel-closed", !open);
+            panel.inert = !open;
+            toggle.setAttribute("aria-expanded", String(open));
+        };
+
+        toggle.addEventListener("click", () => select(modes[(modes.indexOf(mode) + 1) % modes.length]), { signal });
+        this.addEventListener("pointerenter", (event) => {
+            if (event.pointerType === "mouse" && panel.getClientRects().length) show(true);
+        }, { signal });
+        this.addEventListener("pointerleave", () => {
+            if (!this.contains(document.activeElement)) show(false);
+        }, { signal });
+        this.addEventListener("focusout", (event) => {
+            if (!(event.relatedTarget instanceof Node) || !this.contains(event.relatedTarget)) show(false);
+        }, { signal });
+        this.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && !panel.inert) {
+                toggle.focus();
+                show(false);
+            }
+            if (event.key === "ArrowDown" && event.target === toggle && panel.getClientRects().length) {
+                event.preventDefault();
+                show(true);
+                buttons[0]?.focus();
+            }
+        }, { signal });
+        for (const button of buttons) {
+            button.addEventListener("click", () => {
+                const value = modes.find((item) => item === button.dataset.mode);
+                if (value) select(value);
+            }, { signal });
+        }
+        matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+            if (mode === AUTO_MODE) applyThemeToDocument(mode);
+        }, { signal });
+        update();
+    }
+
+    disconnectedCallback() {
+        this.listeners?.abort();
+    }
+}
+
+if (!customElements.get("theme-switch")) customElements.define("theme-switch", ThemeSwitch);
+</script>

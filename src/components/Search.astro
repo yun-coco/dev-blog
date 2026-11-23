@@ -1,0 +1,150 @@
+---
+import { Icon } from "astro-icon/components";
+import I18nKey from "@i18n/i18nKey";
+import { i18n } from "@i18n/translation";
+import { url } from "@utils/url-utils";
+
+const label = i18n(I18nKey.search);
+---
+
+<blog-search class="contents" data-pagefind-url={url("/pagefind/pagefind.js")}>
+    <div class="hidden lg:flex relative items-center h-11 mr-2 rounded-lg bg-black/[0.04] dark:bg-white/5">
+        <Icon name="material-symbols:search" class="absolute ml-3 pointer-events-none text-black/50 dark:text-white/50" />
+        <input type="search" aria-label={label} placeholder={label} aria-controls="search-panel"
+               class="pl-10 pr-3 text-sm bg-transparent h-full w-40 focus:w-60 transition-all" data-desktop />
+    </div>
+    <button type="button" aria-label={label} aria-controls="search-panel" aria-expanded="false" id="search-switch"
+            class="btn-plain lg:hidden rounded-lg w-11 h-11">
+        <Icon name="material-symbols:search" class="text-xl" />
+    </button>
+    <div id="search-panel" inert class="float-panel float-panel-closed search-panel absolute md:w-[30rem] top-20 left-4 md:left-auto right-4 max-h-[calc(100dvh-100px)] overflow-y-auto p-2">
+        <input type="search" aria-label={label} placeholder={label}
+               class="lg:hidden w-full rounded-lg bg-black/[0.04] dark:bg-white/5 h-11 px-3 text-sm" data-mobile />
+        <div data-results></div>
+        <p hidden role="status" class="px-3 py-2 text-sm text-75"></p>
+    </div>
+</blog-search>
+
+<script>
+import type { SearchResult } from "@/global";
+
+type Pagefind = {
+    options: (options: { excerptLength: number }) => Promise<void>;
+    search: (query: string) => Promise<{ results: { data: () => Promise<SearchResult> }[] }>;
+};
+
+let pagefind: Promise<Pagefind> | undefined;
+
+function getPagefind(url: string) {
+    return pagefind ??= import(/* @vite-ignore */ url).then(async (module: Pagefind) => {
+        await module.options({ excerptLength: 20 });
+        return module;
+    }).catch((error) => {
+        pagefind = undefined;
+        throw error;
+    });
+}
+
+class BlogSearch extends HTMLElement {
+    private listeners?: AbortController;
+
+    connectedCallback() {
+        this.listeners?.abort();
+        this.listeners = new AbortController();
+        const { signal } = this.listeners;
+        const desktop = this.querySelector<HTMLInputElement>("[data-desktop]")!;
+        const mobile = this.querySelector<HTMLInputElement>("[data-mobile]")!;
+        const toggle = this.querySelector<HTMLButtonElement>("button")!;
+        const panel = this.querySelector<HTMLElement>("#search-panel")!;
+        const results = this.querySelector<HTMLElement>("[data-results]")!;
+        const status = this.querySelector<HTMLElement>("[role=status]")!;
+        let request = 0;
+
+        const show = (open: boolean) => {
+            panel.inert = !open;
+            panel.classList.toggle("float-panel-closed", !open);
+            toggle.setAttribute("aria-expanded", String(open));
+        };
+
+        const setStatus = (message = "") => {
+            status.textContent = message;
+            status.hidden = !message;
+        };
+
+        const close = () => {
+            request++;
+            show(false);
+        };
+
+        const search = async (input: HTMLInputElement) => {
+            const id = ++request;
+            const query = input.value.trim();
+            results.replaceChildren();
+            setStatus();
+            show(input === mobile || Boolean(query));
+            if (!query) return;
+            if (import.meta.env.DEV) {
+                setStatus("검색은 빌드 후 미리보기에서 사용할 수 있습니다.");
+                return;
+            }
+
+            try {
+                const index = await getPagefind(this.dataset.pagefindUrl!);
+                const matches = await index.search(query);
+                const posts = await Promise.all(matches.results.map((match) => match.data()));
+                if (signal.aborted || id !== request) return;
+                for (const post of posts) {
+                    const link = document.createElement("a");
+                    link.href = post.url;
+                    link.className = "group block rounded-xl px-3 py-2 hover:bg-[var(--btn-plain-bg-hover)]";
+                    const title = document.createElement("div");
+                    title.className = "font-bold text-90";
+                    title.textContent = post.meta.title;
+                    const excerpt = document.createElement("div");
+                    excerpt.className = "text-sm text-50";
+                    const parsed = new DOMParser().parseFromString(post.excerpt, "text/html");
+                    excerpt.textContent = parsed.body.textContent;
+                    link.append(title, excerpt);
+                    results.append(link);
+                }
+                if (!posts.length) setStatus("검색 결과가 없습니다.");
+            } catch {
+                if (!signal.aborted && id === request) setStatus("검색을 불러오지 못했습니다. 다시 시도해 주세요.");
+            }
+        };
+
+        for (const input of [desktop, mobile]) {
+            input.addEventListener("input", (event) => {
+                if (!(event as InputEvent).isComposing) void search(input);
+            }, { signal });
+            input.addEventListener("compositionend", () => void search(input), { signal });
+        }
+        desktop.addEventListener("focus", () => void search(desktop), { signal });
+        toggle.addEventListener("click", () => {
+            if (!panel.inert) close();
+            else {
+                void search(mobile);
+                mobile.focus();
+            }
+        }, { signal });
+        document.addEventListener("click", (event) => {
+            if (event.target instanceof Node && !this.contains(event.target)) close();
+        }, { signal });
+        this.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape" || panel.inert) return;
+            const focus = document.activeElement;
+            close();
+            if (focus instanceof Node && panel.contains(focus)) {
+                (toggle.getClientRects().length ? toggle : desktop).focus();
+                close();
+            }
+        }, { signal });
+    }
+
+    disconnectedCallback() {
+        this.listeners?.abort();
+    }
+}
+
+if (!customElements.get("blog-search")) customElements.define("blog-search", BlogSearch);
+</script>

@@ -1,9 +1,10 @@
 ---
 title: 블로그 시작하기
 slug: hello-blog
-pubDatetime: 2026-11-18T00:00:00Z
+published: 2026-11-18T00:00:00Z
 description: 블로그 발행과 검색을 확인하는 예시 글입니다.
 tags: [blog]
+category: 블로그
 ---
 
 Markdown으로 작성한 이 글은 발행 흐름을 확인하기 위한 예시입니다.

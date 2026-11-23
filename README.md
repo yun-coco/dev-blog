@@ -1,10 +1,10 @@
 # Dev Blog
 
-AstroPaper v6 기반 개발 블로그입니다.
+Fuwari 기반 개발 블로그입니다. 화면 스타일은 Astro Theme Pure의 색상과 여백을 참고했습니다.
 
 ## 로컬 실행
 
-Node.js 22.12 이상과 pnpm이 필요합니다.
+Node.js 22.12 이상과 Corepack 또는 pnpm 9.14.4가 필요합니다.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -26,4 +26,4 @@ GitHub 저장소를 연결한 뒤 프로덕션 브랜치는 `main`, 빌드 명�
 
 정식 사이트 주소를 고정하려면 Cloudflare Pages 환경 변수에 `SITE_URL`을 설정하세요. 기본값은 Cloudflare가 제공하는 `CF_PAGES_URL`입니다.
 
-[AstroPaper 원본](https://github.com/satnaing/astro-paper/tree/v6.0.0)
+[Fuwari 원본](https://github.com/saicaca/fuwari) · [스타일 참고 Astro Theme Pure](https://github.com/cworld1/astro-theme-pure)

@@ -1,0 +1,139 @@
+---
+import I18nKey from "@i18n/i18nKey";
+import { i18n } from "@i18n/translation";
+import type { PostForList } from "@utils/content-utils";
+import { getPostUrlBySlug } from "@utils/url-utils";
+
+const { sortedPosts } = Astro.props as { sortedPosts: PostForList[] };
+const groups = new Map<number, PostForList[]>();
+for (const post of sortedPosts) {
+    const year = post.data.published.getUTCFullYear();
+    const posts = groups.get(year) ?? [];
+    posts.push(post);
+    groups.set(year, posts);
+}
+
+const formatDate = (date: Date) => date.toISOString().slice(5, 10);
+const formatTag = (tags: string[]) => tags.map((tag) => `#${tag}`).join(" ");
+---
+
+<archive-panel class="card-base block px-8 py-6">
+    {[...groups].map(([year, posts]) => (
+        <div data-year>
+            <div class="flex flex-row w-full items-center h-[3.75rem]">
+                <div class="w-[15%] md:w-[10%] transition text-2xl font-bold text-right text-75">
+                    {year}
+                </div>
+                <div class="w-[15%] md:w-[10%]">
+                    <div
+                            class="h-3 w-3 bg-none rounded-full outline outline-[var(--primary)] mx-auto
+                  -outline-offset-[2px] z-50 outline-3"
+                    ></div>
+                </div>
+                <div class="w-[70%] md:w-[80%] transition text-left text-50">
+                    <span data-count>{posts.length}</span>
+                    <span hidden={posts.length !== 1} data-single>{i18n(I18nKey.postCount)}</span>
+                    <span hidden={posts.length === 1} data-plural>{i18n(I18nKey.postsCount)}</span>
+                </div>
+            </div>
+
+            {posts.map((post) => (
+                <a
+                        data-post data-tags={JSON.stringify(post.data.tags)} data-category={post.data.category ?? ""}
+                        href={getPostUrlBySlug(post.slug)}
+                        aria-label={post.data.title}
+                        class="group btn-plain !block h-10 w-full rounded-lg hover:text-[initial]"
+                >
+                    <div class="flex flex-row justify-start items-center h-full">
+                        <!-- date -->
+                        <div class="w-[15%] md:w-[10%] transition text-sm text-right text-50">
+                            {formatDate(post.data.published)}
+                        </div>
+
+                        <!-- dot and line -->
+                        <div class="w-[15%] md:w-[10%] relative dash-line h-full flex items-center">
+                            <div
+                                    class="transition-all mx-auto w-1 h-1 rounded group-hover:h-5
+                       bg-[oklch(0.5_0.05_var(--hue))] group-hover:bg-[var(--primary)]
+                       outline outline-4 z-50
+                       outline-[var(--card-bg)]
+                       group-hover:outline-[var(--btn-plain-bg-hover)]
+                       group-active:outline-[var(--btn-plain-bg-active)]"
+                            ></div>
+                        </div>
+
+                        <!-- post title -->
+                        <div
+                                class="w-[70%] md:max-w-[65%] md:w-[65%] text-left font-bold
+                     group-hover:translate-x-1 transition-all group-hover:text-[var(--primary)]
+                     text-75 pr-8 whitespace-nowrap overflow-ellipsis overflow-hidden"
+                        >
+                            {post.data.title}
+                        </div>
+
+                        <!-- tag list -->
+                        <div
+                                class="hidden md:block md:w-[15%] text-left text-sm transition
+                     whitespace-nowrap overflow-ellipsis overflow-hidden text-30"
+                        >
+                            {formatTag(post.data.tags)}
+                        </div>
+                    </div>
+                </a>
+            ))}
+        </div>
+    ))}
+    <p hidden data-empty class="text-75">해당하는 글이 없습니다.</p>
+</archive-panel>
+
+<script>
+class ArchivePanel extends HTMLElement {
+    private listeners?: AbortController;
+
+    connectedCallback() {
+        this.listeners?.abort();
+        this.listeners = new AbortController();
+        const { signal } = this.listeners;
+        this.filterPosts();
+        document.addEventListener("swup:page:view", () => this.filterPosts(), { signal });
+        window.addEventListener("popstate", () => this.filterPosts(), { signal });
+    }
+
+    disconnectedCallback() {
+        this.listeners?.abort();
+    }
+
+    private filterPosts() {
+        const params = new URLSearchParams(location.search);
+        const tags = params.getAll("tag");
+        const categories = params.getAll("category");
+        const uncategorized = Boolean(params.get("uncategorized"));
+        let total = 0;
+
+        for (const year of this.querySelectorAll<HTMLElement>("[data-year]")) {
+            let count = 0;
+            for (const post of year.querySelectorAll<HTMLElement>("[data-post]")) {
+                const category = post.dataset.category?.trim() ?? "";
+                const postTags: string[] = JSON.parse(post.dataset.tags ?? "[]");
+                const matches = (!tags.length || postTags.some((tag) => tags.includes(tag))) &&
+                    (!categories.length || categories.includes(category)) &&
+                    (!uncategorized || !category);
+                post.hidden = !matches;
+                if (matches) count++;
+            }
+            year.hidden = count === 0;
+            year.querySelector("[data-count]")!.textContent = String(count);
+            year.querySelector<HTMLElement>("[data-single]")!.hidden = count !== 1;
+            year.querySelector<HTMLElement>("[data-plural]")!.hidden = count === 1;
+            total += count;
+        }
+        this.querySelector<HTMLElement>("[data-empty]")!.hidden = total > 0;
+    }
+}
+
+if (!customElements.get("archive-panel")) customElements.define("archive-panel", ArchivePanel);
+</script>
+
+<style>
+    [hidden] { display: none !important; }
+</style>
