@@ -1,0 +1,42 @@
+/* Neutral surfaces and muted blue accents inspired by Astro Theme Pure. */
+html:root {
+    --radius-large: 0.625rem;
+    --primary: hsl(200 29% 42%);
+    --page-bg: hsl(210 33% 99%);
+    --card-bg: #fff;
+    --float-panel-bg: var(--card-bg);
+    --surface-border: hsl(240 6% 88%);
+    --btn-content: var(--primary);
+    --btn-regular-bg: hsl(210 22% 94%);
+    --link-underline: hsl(200 23% 73%);
+}
+
+html:root.dark {
+    color-scheme: dark;
+    --primary: hsl(195 65% 80%);
+    --page-bg: hsl(240 17% 7%);
+    --card-bg: hsl(240 10% 11%);
+    --surface-border: hsl(240 4% 24%);
+    --btn-regular-bg: hsl(230 9% 19%);
+    --link-underline: hsl(200 20% 45%);
+}
+
+html:root body {
+    font-family: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+html:root .card-base,
+html:root .float-panel {
+    box-shadow: inset 0 0 0 1px var(--surface-border);
+}
+
+html:root .float-panel {
+    box-shadow: inset 0 0 0 1px var(--surface-border), 0 12px 28px rgb(0 0 0 / 0.08);
+}
+
+#post-container .markdown-content {
+    max-inline-size: 68ch !important;
+    margin-inline: auto;
+    line-height: 1.85;
+    overflow-wrap: anywhere;
+}
